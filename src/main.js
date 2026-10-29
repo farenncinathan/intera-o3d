@@ -7,14 +7,14 @@ import { CYCLES, FIRING_ORDER, TAU, cycleAt, cylinderAngle } from './mechanics.j
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const state = { selected: null, running: !reducedMotion, rpm: 900, explosion: 56, transparent: false, labels: false, isolated: false, angle: 0, panel: 'overview', cylinder: 1, search: '', mobileView: 'model' };
+const state = { selected: null, running: !reducedMotion, rpm: 900, explosion: 0, transparent: false, labels: false, isolated: false, angle: 0, panel: 'overview', cylinder: 1, search: '', mobileView: 'model' };
 let engine, lastFrame = performance.now(), lastUi = 0, toastTimeout;
 
 $('#app').innerHTML = `
   <header class="app-header">
     <a class="brand" href="./" aria-label="Intera O3D, início">${icon('logo')}<span>INTERA<span class="brand-divider"></span><b>O3D</b></span></a>
     <div class="header-section"><span class="active-dot"></span> LABORATÓRIO INTERATIVO</div>
-    <div class="header-actions"><span class="version">EXPERIÊNCIA 001</span><button class="text-button" id="help-button">${icon('help')}<span>Como explorar</span></button></div>
+    <div class="header-actions"><span class="version">VERSÃO 1.1 · ENCAIXES REVISADOS</span><button class="text-button" id="help-button">${icon('help')}<span>Como explorar</span></button></div>
   </header>
   <main class="workspace" data-mobile-view="model">
     <aside class="sidebar" aria-label="Componentes do motor">
@@ -32,7 +32,7 @@ $('#app').innerHTML = `
       <div id="viewer" class="viewer"><div class="loading" role="status"><span></span>Preparando seu motor…</div></div>
       <div id="model-labels" class="model-labels"></div>
       <div class="viewer-toolbar" role="toolbar" aria-label="Opções de visualização">
-        <button id="explode-toggle" aria-pressed="true" title="Alternar vista explodida">${icon('layers')}<span>Vista explodida</span></button>
+        <button id="explode-toggle" aria-pressed="false" title="Alternar vista explodida">${icon('layers')}<span>Vista explodida</span></button>
         <span class="toolbar-divider"></span><button id="transparent-toggle" aria-pressed="false" title="Tornar bloco e carcaças transparentes">${icon('eye')}<span>Transparência</span></button>
         <button id="labels-toggle" aria-pressed="false" title="Mostrar nomes das peças">${icon('label')}<span class="extra-label">Etiquetas</span></button>
         <span class="toolbar-divider"></span><button id="reset-view" class="icon-button" aria-label="Restaurar câmera e visualização" title="Restaurar visualização (R)">${icon('reset')}</button>
@@ -41,7 +41,7 @@ $('#app').innerHTML = `
       <div class="selected-hint" id="selected-hint" hidden></div>
       <div class="orbit-hint">${icon('rotate')}<span>ARRASTE PARA GIRAR</span><span class="hint-dot">·</span>${icon('mouse')}<span>SCROLL PARA APROXIMAR</span></div>
       <div class="stage-controls">
-        <div class="explosion-control"><div><label for="explosion-range">SEPARAÇÃO DAS PEÇAS</label><output for="explosion-range" id="explosion-value">56<span>%</span></output></div><div class="range-row"><span>Montado</span><input id="explosion-range" type="range" min="0" max="100" value="56" aria-label="Separação das peças" /><span>Explodido</span></div></div>
+        <div class="explosion-control"><div><label for="explosion-range">SEPARAÇÃO DAS PEÇAS <span id="assembly-mode">· MONTADO</span></label><output for="explosion-range" id="explosion-value">0<span>%</span></output></div><div class="range-row"><span>Montado</span><input id="explosion-range" type="range" min="0" max="100" value="0" aria-label="Separação das peças" aria-valuetext="0%, motor montado" /><span>Explodido</span></div></div>
         <div class="simulation-control">
           <button id="play-toggle" class="play-button" aria-label="Pausar animação" aria-pressed="true">${icon('pause')}</button>
           <div class="simulation-copy"><span id="simulation-label">Motor em movimento</span><small>VELOCIDADE DIDÁTICA · 24× MAIS LENTA</small></div>
@@ -56,7 +56,7 @@ $('#app').innerHTML = `
   <footer class="app-footer"><span><i class="status-dot"></i><span id="footer-status">MODELO INTERATIVO</span></span><span>V12 · 60° · 4 TEMPOS</span><span class="footer-note">MODELO DIDÁTICO, INSPIRADO NA REFERÊNCIA</span><span>FEITO PARA EXPLORAR ${icon('arrow')}</span></footer>
   <div id="hover-tooltip" class="hover-tooltip" hidden></div><div id="toast" class="toast" role="status" aria-live="polite"></div>
   <dialog id="guide-dialog" class="guide-dialog"><div class="dialog-top"><span class="eyebrow">SEU GUIA DE EXPLORAÇÃO</span><button id="close-guide" class="icon-button" aria-label="Fechar guia">${icon('close')}</button></div><h2>A curiosidade<br />é o ponto de partida.</h2><p>Explore o motor no seu ritmo. Todas as peças visíveis são selecionáveis.</p>
-    <div class="guide-grid"><div>${icon('rotate')}<h3>Encontre seu ângulo</h3><p>Arraste com o mouse ou com um dedo para girar. Use o scroll ou o gesto de pinça para aproximar.</p></div><div>${icon('piston')}<h3>Escolha uma peça</h3><p>Clique no modelo ou na lista. Dê dois cliques para focar. Use “Isolar peça” para observar os detalhes.</p></div><div>${icon('layers')}<h3>Veja por dentro</h3><p>Separe as peças com o controle de explosão. Ative a transparência para revelar os mecanismos internos.</p></div><div>${icon('play')}<h3>Conecte os movimentos</h3><p>Controle a rotação ou abra “Ver o ciclo”. Cada etapa mostra a função dos pistões e das válvulas.</p></div></div>
+    <div class="guide-grid"><div>${icon('rotate')}<h3>Encontre seu ângulo</h3><p>Arraste com o mouse ou com um dedo para girar. Use o scroll ou o gesto de pinça para aproximar.</p></div><div>${icon('piston')}<h3>Escolha uma peça</h3><p>Clique no modelo ou na lista. Dê dois cliques para focar. Use “Isolar peça” para observar os detalhes.</p></div><div>${icon('layers')}<h3>Veja por dentro</h3><p>Em 0%, o motor está montado. A vista explodida separa os encaixes intencionalmente para estudo. Use a transparência para ver por dentro mantendo o conjunto montado.</p></div><div>${icon('play')}<h3>Conecte os movimentos</h3><p>Controle a rotação ou abra “Ver o ciclo”. Cada etapa mostra a função dos pistões e das válvulas.</p></div></div>
     <div class="keyboard-hints"><span><kbd>Espaço</kbd> Reproduzir / pausar</span><span><kbd>R</kbd> Restaurar vista</span><span><kbd>Esc</kbd> Limpar seleção</span></div>
     <p class="model-disclaimer">Modelo procedural ilustrativo, sem vínculo com fabricantes. Geometria, proporções e distribuição simplificadas. Não é um simulador de desempenho nem um manual de manutenção. Áudio, lubrificação, arrefecimento e fluidodinâmica não são simulados.</p>
     <button class="primary-button" id="guide-done">Vamos explorar ${icon('arrow')}</button>
@@ -138,10 +138,12 @@ function updateControls() {
   $('#rpm-value').innerHTML = `${state.rpm.toLocaleString('pt-BR')} <small>rpm</small>`;
   $('#explosion-value').innerHTML = `${state.explosion}<span>%</span>`;
   $('#explosion-range').value = state.explosion;
+  $('#assembly-mode').textContent = state.explosion === 0 ? '· MONTADO' : '· DESMONTAGEM';
+  $('#explosion-range').setAttribute('aria-valuetext', `${state.explosion}%, ${state.explosion === 0 ? 'motor montado' : 'vista explodida, encaixes separados para estudo'}`);
   $('#explode-toggle').setAttribute('aria-pressed', String(state.explosion > 0));
   $('#transparent-toggle').setAttribute('aria-pressed', String(state.transparent));
   $('#labels-toggle').setAttribute('aria-pressed', String(state.labels));
-  engine.targetExplosion = state.explosion / 100; engine.labelsVisible = state.labels;
+  engine.setExplosion(state.explosion / 100); engine.labelsVisible = state.labels;
 }
 function openCycle(cylinder = 1, phase = null) {
   state.cylinder = Number(cylinder); state.panel = 'cycle'; state.transparent = true; state.isolated = false; state.explosion = 0;
@@ -152,7 +154,7 @@ function openCycle(cylinder = 1, phase = null) {
   if (window.innerWidth <= 1000) setMobileView('info');
 }
 function resetView() {
-  state.explosion = 56; state.transparent = false; state.labels = false; state.isolated = false; state.panel = 'overview';
+  state.explosion = 0; state.transparent = false; state.labels = false; state.isolated = false; state.panel = 'overview';
   engine.setTransparent(false); engine.setIsolated(false); selectPart(null); engine.reset(); updateControls(); toast('Visualização restaurada');
 }
 function updateCycleUI() {
