@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ROD_LENGTH, CRANK_RADIUS, cylinderAngle, valveLift } from '../src/mechanics.js';
+import { ROD_LENGTH, CRANK_RADIUS, cylinderAngle, valveLift, VALVE_MAX_LIFT } from '../src/mechanics.js';
 import {
   CRANK_Y, BANK_TILTS, BORE_SPACING, BANK_AXIAL_OFFSETS,
   BLOCK_DECK, HEAD_BOTTOM, HEAD_TOP, COVER_BOTTOM, COVER_TOP, CAM_HEIGHT, CAM_BASE_RADIUS,
@@ -17,8 +17,8 @@ test('as faces do bloco, cabeçote e tampa compartilham as mesmas superfícies d
     nearPoint(bankPoint(bank, 0, BLOCK_DECK, lateral), bankPoint(bank, 0, HEAD_BOTTOM, lateral));
     nearPoint(bankPoint(bank, 0, HEAD_TOP, lateral), bankPoint(bank, 0, COVER_BOTTOM, lateral));
   }
-  assert.ok(CAM_HEIGHT - CAM_BASE_RADIUS - 0.14 > COVER_BOTTOM);
-  assert.ok(CAM_HEIGHT + CAM_BASE_RADIUS + 0.14 < COVER_TOP - 0.12);
+  assert.ok(CAM_HEIGHT - CAM_BASE_RADIUS - VALVE_MAX_LIFT > COVER_BOTTOM);
+  assert.ok(CAM_HEIGHT + CAM_BASE_RADIUS + VALVE_MAX_LIFT < COVER_TOP - 0.12);
 });
 
 test('cilindros, pistões e pinos usam o mesmo eixo axial em ambas as bancadas', () => {
@@ -73,7 +73,7 @@ test('superfície dos comandos acompanha exatamente os tuchos nos quatro tempos'
       const camContactHeight = CAM_HEIGHT - radius;
       const followerHeight = closedFollowerHeight - valveLift(cylinderAngle(angle, number), kind);
       near(camContactHeight, followerHeight);
-      assert.ok(radius >= CAM_BASE_RADIUS - 1e-12 && radius <= CAM_BASE_RADIUS + 0.14 + 1e-12);
+      assert.ok(radius >= CAM_BASE_RADIUS - 1e-12 && radius <= CAM_BASE_RADIUS + VALVE_MAX_LIFT + 1e-12);
       assert.ok(CAM_HEIGHT + radius < COVER_TOP - 0.12);
     }
   }

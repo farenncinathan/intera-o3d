@@ -1,4 +1,4 @@
-import { CRANK_RADIUS, cylinderAngle, pistonPosition, valveLift } from './mechanics.js';
+import { CRANK_RADIUS, cylinderAngle, pistonPosition, valveLift, valveLiftSlope } from './mechanics.js';
 
 // Todas as alturas são medidas no eixo local de cada bancada, a partir do
 // centro do virabrequim. Compartilhar essas referências evita folgas de montagem.
@@ -11,13 +11,19 @@ export const HEAD_BOTTOM = BLOCK_DECK;
 export const HEAD_TOP = 2.55;
 export const HEAD_CENTER = (HEAD_BOTTOM + HEAD_TOP) / 2;
 export const CAM_HEIGHT = 2.98;
-export const CAM_BASE_RADIUS = 0.065;
+export const CAM_BASE_RADIUS = 0.14;
 export const CAM_LATERALS = Object.freeze([-0.23, 0.23]);
 export const COVER_CENTER = 2.87;
 export const COVER_BOTTOM = HEAD_TOP;
 // COVER_CENTER é a referência de montagem da casca, não seu centro simétrico.
 // O teto precisa liberar o envelope dos ressaltos e os tuchos de válvula.
 export const COVER_TOP = 3.32;
+export const VALVE_HOME_HEIGHT = 2.28;
+export const SPRING_SEAT_HEIGHT = HEAD_TOP + 0.01;
+export const SPRING_REST_LENGTH = 0.25;
+export const FOLLOWER_TOP_HEIGHT = CAM_HEIGHT - CAM_BASE_RADIUS;
+export const FOLLOWER_HEIGHT = 0.09;
+export const FOLLOWER_RADIUS = 0.09;
 
 function validateBank(bank) {
   if (bank !== 0 && bank !== 1) throw new RangeError('Bancada deve ser 0 ou 1.');
@@ -55,13 +61,47 @@ export function rodRotationX(angle, number) {
   return Math.atan2(wrist[2] - crank[2], wrist[1] - crank[1]);
 }
 
-// O mesmo deslocamento que move a válvula define a superfície do ressalto.
-// O comando gira à metade da rotação do virabrequim; o ponto do perfil voltado
-// para o tucho fica no ângulo local BANK_TILT + PI - angle / 2.
+// A haste e o prato descem, mas o assento da mola continua no cabeçote.
+// offset é local à válvula; compensar o seu curso mantém a base estacionária.
+export function valveSpringState(angle, number, kind) {
+  validateCylinder(number);
+  if (kind !== 'intake' && kind !== 'exhaust') throw new RangeError('Válvula deve ser de intake ou exhaust.');
+  const lift = valveLift(cylinderAngle(angle, number), kind);
+  return {
+    offset: SPRING_SEAT_HEIGHT - VALVE_HOME_HEIGHT + lift,
+    scale: (SPRING_REST_LENGTH - lift) / SPRING_REST_LENGTH,
+  };
+}
+
+// Distância de apoio do came contra o tucho plano. Não é um raio polar:
+// construir r = base + lift fazia as laterais do ressalto invadirem o tucho.
+// O comando gira à metade da rotação; a normal de contato no seu eixo local
+// fica em BANK_TILT + PI - angle / 2.
 export function camRadius(profileAngle, bank, number, kind) {
   validateBank(bank);
   validateCylinder(number);
   if (kind !== 'intake' && kind !== 'exhaust') throw new RangeError('Comando deve ser de intake ou exhaust.');
   const phase = 2 * (BANK_TILTS[bank] + Math.PI - profileAngle) + cylinderAngle(0, number);
   return CAM_BASE_RADIUS + valveLift(phase, kind);
+}
+
+// Envelope de um tucho plano: p = h*n + h'*t. Com base .14 e curso .04,
+// h+h'' >= .02: o perfil permanece convexo e realiza o curso especificado.
+// Nos extremos do curso, os limites de h' formam a face reta de transição.
+export function camProfilePoints(bank, number, kind, samples = 192) {
+  validateBank(bank); validateCylinder(number);
+  if (kind !== 'intake' && kind !== 'exhaust') throw new RangeError('Comando deve ser de intake ou exhaust.');
+  if (!Number.isInteger(samples) || samples < 24 || samples % 12 !== 0) throw new RangeError('Amostras devem ser múltiplas de 12 e pelo menos 24.');
+  const points = [];
+  for (let i = 0; i < samples; i++) {
+    const alpha = i / samples * Math.PI * 2;
+    const phase = 2 * (BANK_TILTS[bank] + Math.PI - alpha) + cylinderAngle(0, number);
+    const h = camRadius(alpha, bank, number, kind);
+    const before = -2 * valveLiftSlope(phase + 1e-9, kind);
+    const after = -2 * valveLiftSlope(phase - 1e-9, kind);
+    for (const derivative of Math.abs(before - after) > 1e-6 ? [before, after] : [before]) {
+      points.push([h * Math.cos(alpha) - derivative * Math.sin(alpha), h * Math.sin(alpha) + derivative * Math.cos(alpha)]);
+    }
+  }
+  return points;
 }

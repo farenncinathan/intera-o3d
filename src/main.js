@@ -14,7 +14,7 @@ $('#app').innerHTML = `
   <header class="app-header">
     <a class="brand" href="./" aria-label="Intera O3D, início">${icon('logo')}<span>INTERA<span class="brand-divider"></span><b>O3D</b></span></a>
     <div class="header-section"><span class="active-dot"></span> LABORATÓRIO INTERATIVO</div>
-    <div class="header-actions"><span class="version">VERSÃO 1.1 · ENCAIXES REVISADOS</span><button class="text-button" id="help-button">${icon('help')}<span>Como explorar</span></button></div>
+    <div class="header-actions"><span class="version">VERSÃO 1.2 · MOTOR REVISADO</span><button class="text-button" id="help-button">${icon('help')}<span>Como explorar</span></button></div>
   </header>
   <main class="workspace" data-mobile-view="model">
     <aside class="sidebar" aria-label="Componentes do motor">

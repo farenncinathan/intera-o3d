@@ -5,58 +5,37 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { cylinderAngle, pistonPosition, valveLift, cycleAt, CYCLES } from './mechanics.js';
 import { categoryById } from './data.js';
 import { buildEngine } from './model.js';
-import { CRANK_Y, BANK_TILTS, pistonPin, crankPin, rodRotationX } from './assembly.js';
+import { mesh, box, roundedBox, cylinder, ring, torus, bolt, pipe } from './geometry.js';
+import { CRANK_Y, BANK_TILTS, pistonPin, crankPin, rodRotationX, valveSpringState } from './assembly.js';
 
-const geometryCache = new Map();
-function cached(key, create) { if (!geometryCache.has(key)) geometryCache.set(key, create()); return geometryCache.get(key); }
-function box(w, h, d) { return cached(`b${w},${h},${d}`, () => new THREE.BoxGeometry(w, h, d)); }
-function cylinder(r, h, r2 = r, segments = 24) { return cached(`c${r},${h},${r2},${segments}`, () => new THREE.CylinderGeometry(r, r2, h, segments)); }
-function torus(r, t) { return cached(`t${r},${t}`, () => new THREE.TorusGeometry(r, t, 8, 32)); }
-function roundedBox(w, h, d, radius = 0.1) {
-  radius = Math.min(radius, w * 0.45, h * 0.45, d * 0.45);
-  return cached(`r${w},${h},${d},${radius}`, () => {
-    const x = -w / 2, y = -h / 2, s = new THREE.Shape();
-    s.moveTo(x + radius, y); s.lineTo(x + w - radius, y);
-    s.quadraticCurveTo(x + w, y, x + w, y + radius); s.lineTo(x + w, y + h - radius);
-    s.quadraticCurveTo(x + w, y + h, x + w - radius, y + h); s.lineTo(x + radius, y + h);
-    s.quadraticCurveTo(x, y + h, x, y + h - radius); s.lineTo(x, y + radius);
-    s.quadraticCurveTo(x, y, x + radius, y);
-    const g = new THREE.ExtrudeGeometry(s, { depth: d - radius, bevelEnabled: true, bevelSegments: 2, steps: 1, bevelSize: radius / 2, bevelThickness: radius / 2, curveSegments: 6 });
-    g.translate(0, 0, -(d - radius) / 2); return g;
-  });
-}
-function mesh(parent, geo, material, pos = [0, 0, 0], rot = [0, 0, 0]) {
-  const m = new THREE.Mesh(geo, material); m.position.set(...pos); m.rotation.set(...rot); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
-}
-function pipe(parent, points, radius, mat) {
-  const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p)));
-  return mesh(parent, new THREE.TubeGeometry(curve, 28, radius, 8, false), mat);
-}
-function bolt(parent, mat, p, rot = [0, 0, 0]) { return mesh(parent, cylinder(0.047, 0.035, 0.047, 6), mat, p, rot); }
-function ring(parent, outer, inner, height, mat, pos, rot = [0, 0, 0]) {
-  const key = `ring${outer},${inner},${height}`;
-  const geo = cached(key, () => new THREE.LatheGeometry([
-    new THREE.Vector2(inner, -height / 2), new THREE.Vector2(outer, -height / 2),
-    new THREE.Vector2(outer, height / 2), new THREE.Vector2(inner, height / 2), new THREE.Vector2(inner, -height / 2),
-  ], 32));
-  return mesh(parent, geo, mat, pos, rot);
-}
 function surfaceTexture(kind) {
-  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 128;
+  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256;
   const ctx = canvas.getContext('2d'); let seed = 73;
   const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
   if (kind === 'carbon') {
-    ctx.fillStyle = '#202326'; ctx.fillRect(0, 0, 128, 128);
-    for (let y = 0; y < 128; y += 8) for (let x = 0; x < 128; x += 8) {
-      const alternate = ((x + y) / 8) % 2;
-      for (let k = 0; k < 4; k++) { ctx.fillStyle = `rgb(${alternate ? 36 + k * 4 : 22 + k * 3},${alternate ? 38 + k * 4 : 24 + k * 3},${alternate ? 40 + k * 4 : 26 + k * 3})`; ctx.fillRect(x + (alternate ? 0 : k * 2), y + (alternate ? k * 2 : 0), alternate ? 8 : 1, alternate ? 1 : 8); }
+    // A repeating 2×2 twill with fine individual filaments, under clear resin.
+    ctx.fillStyle = '#202327'; ctx.fillRect(0, 0, 256, 256);
+    for (let y = 0; y < 256; y += 8) for (let x = 0; x < 256; x += 8) {
+      const horizontal = ((x / 8 - y / 8 + 32) % 4) < 2;
+      for (let k = 0; k < 8; k++) {
+        const value = Math.round(25 + Math.sin(k / 7 * Math.PI) * 22 + (horizontal ? 3 : 0));
+        ctx.fillStyle = `rgb(${value},${value + 2},${value + 4})`;
+        ctx.fillRect(x + (horizontal ? 0 : k), y + (horizontal ? k : 0), horizontal ? 8 : 1, horizontal ? 1 : 8);
+      }
     }
   } else {
-    const image = ctx.createImageData(128, 128);
-    for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x++) { const value = kind === 'brush' ? 140 + Math.sin(y * 27) * 12 + random() * 12 : 140 + random() * 60; const i = (y * 128 + x) * 4; image.data[i] = image.data[i + 1] = image.data[i + 2] = value; image.data[i + 3] = 255; }
+    const image = ctx.createImageData(256, 256);
+    for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
+      const value = kind === 'brush' ? 145 + Math.sin(y * 27) * 15 + random() * 8 : 145 + random() * 50;
+      const i = (y * 256 + x) * 4;
+      image.data[i] = image.data[i + 1] = image.data[i + 2] = value; image.data[i + 3] = 255;
+    }
     ctx.putImageData(image, 0, 0);
   }
-  const texture = new THREE.CanvasTexture(canvas); texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(kind === 'carbon' ? 5 : 2, kind === 'carbon' ? 2 : 3); return texture;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(kind === 'carbon' ? 3 : 2, kind === 'carbon' ? 1 : 3);
+  return texture;
 }
 const crankY = CRANK_Y;
 const bankTilt = BANK_TILTS;
@@ -65,7 +44,7 @@ const axis = bank => new THREE.Vector3(0, Math.cos(bankTilt[bank]), Math.sin(ban
 export class EngineViewer {
   constructor(container, labelsContainer, callbacks) {
     this.container = container; this.labelsContainer = labelsContainer; this.callbacks = callbacks;
-    this.parts = []; this.partsById = new Map(); this.pickables = []; this.pistons = []; this.rods = []; this.valves = []; this.cams = []; this.fans = []; this.wheels = [];
+    this.parts = []; this.partsById = new Map(); this.pickables = []; this.pistons = []; this.rods = []; this.valves = []; this.springs = []; this.cams = []; this.fans = []; this.wheels = [];
     this.explosion = 0; this.targetExplosion = 0; this.selected = null; this.hovered = null; this.transparent = false; this.isolated = false; this.labelsVisible = false;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(35, 1, 0.1, 80);
@@ -75,7 +54,8 @@ export class EngineViewer {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = 0.88;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = .82;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.domElement.setAttribute('aria-label', 'Modelo 3D interativo de um motor V12. Arraste para girar e use a lista de componentes para selecionar peças.');
     this.renderer.domElement.setAttribute('role', 'img');
     this.renderer.domElement.dataset.testid = 'engine-canvas';
@@ -86,28 +66,31 @@ export class EngineViewer {
     this.controls.minPolarAngle = 0.12; this.controls.maxPolarAngle = Math.PI * 0.87;
     this.controls.addEventListener('start', () => { this.cameraTween = null; });
     const pmrem = new THREE.PMREMGenerator(this.renderer);
-    const room = new RoomEnvironment(); this.envTarget = pmrem.fromScene(room, 0.04); this.scene.environment = this.envTarget.texture; room.dispose(); pmrem.dispose();
-    this.scene.add(new THREE.HemisphereLight(0xdde8ff, 0x28202b, 1.1));
-    const key = new THREE.DirectionalLight(0xfff5e9, 2.9); key.position.set(4, 10, 6); key.castShadow = true;
-    key.shadow.mapSize.set(1024, 1024); Object.assign(key.shadow.camera, { left: -7, right: 7, top: 8, bottom: -6 }); key.shadow.bias = -0.001; key.shadow.normalBias = 0.025; this.scene.add(key);
-    const rim = new THREE.DirectionalLight(0xb9d3ff, 2.3); rim.position.set(-6, 4, -4); this.scene.add(rim);
-    const fill = new THREE.DirectionalLight(0xffbb9c, 1.1); fill.position.set(-1, 1, 8); this.scene.add(fill);
+    const room = new RoomEnvironment(); this.envTarget = pmrem.fromScene(room, .025); this.scene.environment = this.envTarget.texture; room.dispose(); pmrem.dispose();
+    this.scene.environmentIntensity = .62;
+    this.scene.add(new THREE.HemisphereLight(0xe6edff, 0x29262a, .6));
+    const key = new THREE.DirectionalLight(0xfff6eb, 2.2); key.position.set(4, 10, 6); key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048); Object.assign(key.shadow.camera, { left: -7, right: 7, top: 8, bottom: -6 }); key.shadow.bias = -.0004; key.shadow.normalBias = .012; this.scene.add(key);
+    const rim = new THREE.DirectionalLight(0xd8e6ff, 1.5); rim.position.set(-6, 4, -4); this.scene.add(rim);
+    const fill = new THREE.DirectionalLight(0xffffff, .65); fill.position.set(-1, 1, 8); this.scene.add(fill);
     const floor = mesh(this.scene, new THREE.PlaneGeometry(200, 200), new THREE.ShadowMaterial({ opacity: 0.22 }), [0, -2.55, 0], [-Math.PI / 2, 0, 0]); floor.castShadow = false;
     const grid = new THREE.GridHelper(20, 40, 0x4c4d50, 0x36373a); grid.position.y = -2.56; grid.material.transparent = true; grid.material.opacity = 0.11; this.scene.add(grid);
     const grain = surfaceTexture('cast'), brush = surfaceTexture('brush'), carbon = surfaceTexture('carbon');
     carbon.colorSpace = THREE.SRGBColorSpace;
+    const carbonBump = carbon.clone(); carbonBump.colorSpace = THREE.NoColorSpace;
+    for (const texture of [grain, brush, carbon, carbonBump]) texture.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
     this.materials = {
-      red: new THREE.MeshPhysicalMaterial({ color: 0x8f0815, metalness: 0.45, roughness: 0.31, clearcoat: .65, clearcoatRoughness: .24, bumpMap: grain, bumpScale: .003 }),
-      brightRed: new THREE.MeshPhysicalMaterial({ color: 0xb10b18, metalness: 0.4, roughness: 0.27, clearcoat: .8, clearcoatRoughness: .2, bumpMap: grain, bumpScale: .003 }),
-      silver: new THREE.MeshStandardMaterial({ color: 0x919ca5, metalness: 0.88, roughness: 0.33, bumpMap: grain, bumpScale: .003 }),
-      steel: new THREE.MeshStandardMaterial({ color: 0x525d68, metalness: 0.92, roughness: 0.25, bumpMap: brush, bumpScale: .003 }),
-      dark: new THREE.MeshStandardMaterial({ color: 0x191d22, metalness: 0.72, roughness: 0.36 }),
-      black: new THREE.MeshStandardMaterial({ color: 0x111316, metalness: 0.35, roughness: 0.55 }),
-      carbon: new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: carbon, metalness: .3, roughness: .38, clearcoat: .65, bumpMap: carbon, bumpScale: .015 }),
-      polished: new THREE.MeshStandardMaterial({ color: 0xbcc4cd, metalness: 1, roughness: .18, bumpMap: brush, bumpScale: .002 }),
+      red: new THREE.MeshPhysicalMaterial({ color: 0xa5040c, metalness: .08, roughness: .34, clearcoat: .55, clearcoatRoughness: .28, bumpMap: grain, bumpScale: .0015 }),
+      brightRed: new THREE.MeshPhysicalMaterial({ color: 0xc40810, metalness: .06, roughness: .3, clearcoat: .65, clearcoatRoughness: .24, bumpMap: grain, bumpScale: .001 }),
+      silver: new THREE.MeshStandardMaterial({ color: 0xa6afb5, metalness: .9, roughness: .4, bumpMap: grain, bumpScale: .005 }),
+      steel: new THREE.MeshStandardMaterial({ color: 0x69727c, metalness: .98, roughness: .29, bumpMap: brush, bumpScale: .0015 }),
+      dark: new THREE.MeshStandardMaterial({ color: 0x252a30, metalness: .8, roughness: .34 }),
+      black: new THREE.MeshStandardMaterial({ color: 0x121416, metalness: 0, roughness: .72 }),
+      carbon: new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: carbon, metalness: .15, roughness: .34, clearcoat: .85, clearcoatRoughness: .18, bumpMap: carbonBump, bumpScale: .002 }),
+      polished: new THREE.MeshStandardMaterial({ color: 0xcbd1d5, metalness: 1, roughness: .17, bumpMap: brush, bumpScale: .0008 }),
       ceramic: new THREE.MeshStandardMaterial({ color: 0xddd7c7, metalness: 0, roughness: .28 }),
-      hot: new THREE.MeshStandardMaterial({ color: 0x504840, metalness: .65, roughness: .8, bumpMap: grain, bumpScale: .025 }),
-      exhaust: new THREE.MeshStandardMaterial({ color: 0x8c877c, metalness: .95, roughness: .26, bumpMap: brush, bumpScale: .004 }),
+      hot: new THREE.MeshStandardMaterial({ color: 0x655c51, metalness: .72, roughness: .68, bumpMap: grain, bumpScale: .012 }),
+      exhaust: new THREE.MeshStandardMaterial({ color: 0xa39787, metalness: .98, roughness: .23, bumpMap: brush, bumpScale: .0015 }),
       brass: new THREE.MeshStandardMaterial({ color: 0xba9150, metalness: 0.8, roughness: 0.34 }),
     };
     this.build(); this.finishParts(); this.createGas(); this.createLabels(); this.bindPointer();
@@ -263,6 +246,10 @@ export class EngineViewer {
       part.group.rotation.set(rodRotationX(angle, number), 0, 0);
     }
     for (const { part, number, kind, bank } of this.valves) part.group.position.addScaledVector(axis(bank), -valveLift(cylinderAngle(angle, number), kind));
+    for (const { spring, number, kind } of this.springs) {
+      const { offset, scale } = valveSpringState(angle, number, kind);
+      spring.position.y = offset; spring.scale.y = scale;
+    }
     for (let i = 0; i < this.cams.length; i++) this.cams[i].group.rotation.x = angle / 2;
     for (const fan of this.fans) fan.rotation.x = angle * 3;
     for (const { wheel, ratio } of this.wheels) wheel.rotation.x = angle * ratio;

@@ -1,6 +1,7 @@
 export const TAU = Math.PI * 2;
 export const CRANK_RADIUS = 0.32;
 export const ROD_LENGTH = 1.48;
+export const VALVE_MAX_LIFT = 0.04;
 // Sequência ilustrativa: uma combustão a cada 60° de um ciclo de 720°.
 export const FIRING_ORDER = [1, 12, 5, 8, 3, 10, 6, 7, 2, 11, 4, 9];
 export const CYCLES = [
@@ -23,5 +24,12 @@ export function valveLift(angle, kind) {
   const phase = positiveModulo(angle, TAU * 2);
   const start = kind === 'intake' ? 0 : Math.PI * 3;
   const t = (phase - start) / Math.PI;
-  return t > 0 && t < 1 ? Math.sin(t * Math.PI) * 0.14 : 0;
+  return t > 0 && t < 1 ? Math.sin(t * Math.PI) * VALVE_MAX_LIFT : 0;
+}
+
+export function valveLiftSlope(angle, kind) {
+  const phase = positiveModulo(angle, TAU * 2);
+  const start = kind === 'intake' ? 0 : Math.PI * 3;
+  const t = (phase - start) / Math.PI;
+  return t > 0 && t < 1 ? Math.cos(t * Math.PI) * VALVE_MAX_LIFT : 0;
 }

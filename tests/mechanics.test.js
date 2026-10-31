@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { TAU, CRANK_RADIUS, ROD_LENGTH, pistonPosition, cylinderAngle, cycleAt, valveLift, FIRING_ORDER } from '../src/mechanics.js';
+import { TAU, CRANK_RADIUS, ROD_LENGTH, pistonPosition, cylinderAngle, cycleAt, valveLift, FIRING_ORDER, VALVE_MAX_LIFT } from '../src/mechanics.js';
 
 const near = (a, b, tolerance = 1e-9) => assert.ok(Math.abs(a - b) < tolerance, `${a} ≠ ${b}`);
 
@@ -27,8 +27,8 @@ test('os quatro tempos ocupam um ciclo de 720°, inclusive com ângulos negativo
 test('as válvulas abrem apenas no tempo correspondente e fecham nos extremos', () => {
   for (let phase = 0; phase < 4; phase++) {
     const angle = (phase + 0.5) * Math.PI;
-    near(valveLift(angle, 'intake'), phase === 0 ? 0.14 : 0);
-    near(valveLift(angle, 'exhaust'), phase === 3 ? 0.14 : 0);
+    near(valveLift(angle, 'intake'), phase === 0 ? VALVE_MAX_LIFT : 0);
+    near(valveLift(angle, 'exhaust'), phase === 3 ? VALVE_MAX_LIFT : 0);
   }
   for (let phase = 0; phase <= 4; phase++) {
     near(valveLift(phase * Math.PI, 'intake'), 0);

@@ -1,11 +1,15 @@
-# INTERA O3D 1.1 — Laboratório de um motor V12
+# INTERA O3D 1.2 — Laboratório de um motor V12
 
 Site interativo em português com um motor V12 biturbo procedural, inspirado na imagem de referência. Feito com **Three.js + Vite + JavaScript**, sem backend, conta, API, plugins ou serviços externos para executar a aplicação.
+
+Esta versão **1.2.0 foi reconstruída a partir da 1.1.0** da branch `site-motor-3d`. Os arquivos da antiga versão 1.2 local não estavam disponíveis e não foram recuperados. A branch `main` foi preservada.
+
+**Download:** [ZIP 1.2.0 para VS Code](https://github.com/farenncinathan/intera-o3d/raw/refs/heads/site-motor-3d/downloads/intera-o3d-v1.2.0.zip). O [ZIP com nome fixo](https://github.com/farenncinathan/intera-o3d/raw/refs/heads/site-motor-3d/downloads/intera-o3d.zip) também aponta para esta entrega.
 
 ## Rodar no terminal do VS Code
 
 1. Instale o **Node.js 22.12 ou superior** (recomendado: Node.js 24 LTS; inclui o npm).
-2. Extraia o ZIP em uma pasta nova e abra no VS Code a pasta que contém `package.json` e `package-lock.json`. O ZIP da versão 1.1 traz esses arquivos diretamente na raiz, sem outra pasta interna.
+2. Extraia o ZIP em uma pasta nova e abra no VS Code a pasta que contém `package.json` e `package-lock.json`. O ZIP traz esses arquivos diretamente na raiz, sem outra pasta interna.
 3. Abra **Terminal → Novo Terminal** e execute:
 
 ```bash
@@ -43,7 +47,16 @@ O build está em `dist/`. A prévia normalmente usa `http://localhost:4173`. A c
 npm test
 ```
 
-Os 12 testes verificam o curso do pistão, a conservação do comprimento da biela, o ciclo de 720°, as válvulas, os intervalos entre cilindros e os pontos de montagem compartilhados.
+Os **22 testes** estão em três arquivos: seis de montagem, seis de cinemática e dez do modelo construído com as mesmas geometrias e matrizes do renderizador. Verificam o curso dos pistões, o comprimento das bielas, o ciclo de 720°, os 90 componentes, as conexões montadas, os mancais reais, as molas com assento fixo e o contato dos comandos com os tuchos sem invasão lateral. A execução não depende de navegador ou WebGL.
+
+### Gerar novamente o ZIP
+
+```bash
+npm test
+npm run package
+```
+
+O segundo comando faz o build e gera `downloads/intera-o3d-v1.2.0.zip` e `downloads/intera-o3d.zip`. O empacotador usa apenas Node.js e funciona também no Windows. Inclui os fontes, o lockfile, os testes, a documentação e `dist/`; exclui `node_modules`, `.git` e os ZIPs anteriores.
 
 ## O que explorar
 
@@ -68,11 +81,13 @@ O modo explodido separa as peças para estudo e, por isso, exibe conexões desmo
 
 ### Revisão da montagem e do acabamento
 
-Os perfis dos comandos são derivados da mesma função que aciona as válvulas, para acompanhar os tuchos durante o ciclo.
+Os perfis dos comandos são construídos pelo envelope de apoio de um tucho plano, usando a mesma lei que aciona as válvulas. O raio de base de 0,14 e o curso de 0,04 unidades didáticas mantêm o perfil convexo e o contato durante o ciclo, sem a invasão lateral produzida pelo antigo perfil radial. As molas comprimem enquanto seus assentos permanecem fixos no cabeçote.
 
 Os pontos de referência do pino do pistão, dos olhais da biela e das manivelas do virabrequim compartilham as mesmas coordenadas de montagem. Os eixos dos pistões e das camisas também usam o mesmo espaçamento e o mesmo deslocamento de cada bancada. As faces de encontro do bloco, dos cabeçotes e das tampas, assim como as conexões da admissão, dos coletores de escape, dos turbos e da distribuição, orientam a construção do conjunto montado.
 
-O acabamento utiliza materiais PBR, com diferenças de rugosidade, reflexão e superfície entre alumínio, aço, pintura e carbono, além de detalhes de flanges e fixações. Esse tratamento melhora a leitura dos materiais e dos encaixes, mantendo a natureza procedural e didática do modelo. Ele não transforma a visualização em uma réplica CAD do motor da foto.
+As dimensões externas dos arredondamentos correspondem às medidas usadas na montagem. O cárter vermelho, o alojamento do virabrequim e as saias dos pistões têm aberturas internas. As tampas possuem ombros arredondados, nervuras, juntas e insertos de carbono. Os turbos incluem volutas de seção variável, bocais, atuadores e tubulações com flanges e abraçadeiras.
+
+O acabamento utiliza materiais PBR, com diferenças de rugosidade, reflexão e superfície entre alumínio fundido, aço usinado, pintura vermelha com verniz, borracha e carbono tramado. A iluminação neutra preserva a leitura desses materiais. Esse tratamento mantém a natureza procedural e didática do modelo; ele não transforma a visualização em uma réplica CAD do motor da foto.
 
 ## Requisitos e problemas comuns
 
@@ -87,13 +102,15 @@ O acabamento utiliza materiais PBR, com diferenças de rugosidade, reflexão e s
 
 ```text
 src/engine.js       Renderização, câmera, seleção, materiais e animação 3D
+src/geometry.js     Geometrias compartilhadas pelo modelo e pelos testes
 src/model.js        Construção das peças e interfaces de montagem
 src/assembly.js     Referências e pontos compartilhados de montagem
 src/mechanics.js    Cinemática e ciclo de quatro tempos
 src/data.js         Conteúdo didático dos componentes
 src/main.js         Interface e controles
 src/style.css      Layout responsivo e apresentação
-tests/             Testes da cinemática
+tests/             Testes da cinemática, montagem e geometria real
+scripts/package.mjs Empacotamento ZIP com package.json na raiz
 public/            Ícone local
 ```
 
